@@ -42,8 +42,29 @@ class Decoder(nn.Module):
         self.dropout = nn.Dropout(p=0.1)
         
         self.ln_post = nn.LayerNorm(d_model)
+        
+        self.initialize_parameters()
+        
+    def initialize_parameters(self):
+        
+        nn.init.normal_(self.embedding.weight, std=0.02)
 
-    def forward(self, tokens, enc_output, mask=None, pad_mask=None):
+        proj_std = (self.d_model ** -0.5) * ((2 * self.layers) ** -0.5)
+        attn_std = self.d_model ** -0.5
+        fc_std = (2 * self.d_model) ** -0.5
+        
+        for block in self.transformer:
+
+            nn.init.normal_(block.attn_1.in_proj_weight, std=attn_std)
+            nn.init.normal_(block.attn_1.out_proj.weight, std=proj_std)
+
+            nn.init.normal_(block.attn_2.in_proj_weight, std=attn_std)
+            nn.init.normal_(block.attn_2.out_proj.weight, std=proj_std)
+            
+            nn.init.normal_(block.mlp.c_fc.weight, std=fc_std)
+            nn.init.normal_(block.mlp.c_proj.weight, std=proj_std)
+
+    def forward(self, tokens, enc_output, memory=None, mask=None, pad_mask=None):
         """
         dec_input (batch, seq, 1)
         enc_output (batch, layers, seq, features)
@@ -57,16 +78,34 @@ class Decoder(nn.Module):
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.pos_enc(x)
                 
-        for att_block in self.transformer:
-                  
-            x = att_block(x, enc_output, mask, pad_mask)
-        
+        new_memory = []
+            
+        for i, att_block in enumerate(self.transformer):
 
+            if i != 0:
+
+                if memory is not None:
+                    x = torch.cat([memory[i-1], x])
+                new_memory.append(x)
+
+            x = att_block(x, enc_output, mask, pad_mask)        
+            
+            
+        x = self.ln_post(x)
+        
         x = x.permute(1, 0, 2)  # LND -> NLD
         
-        x = self.ln_post(x)
         
         x = self.fc(self.dropout(x))
         
+        if not self.training:
+
+            if self.layers > 0:
+                new_memory = torch.stack(new_memory)
+            else:
+                new_memory = None
+
+            return x, new_memory
+            
         return x
     

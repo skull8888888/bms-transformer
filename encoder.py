@@ -83,13 +83,30 @@ class Encoder(nn.Module):
     def __init__(self, d_model: int, n_head: int, layers: int):
         super().__init__()
         
+        self.d_model = d_model
         self.layers = layers
         
         self.transformer = nn.Sequential(*[ResidualEncoderAttentionBlock(d_model, n_head) for _ in range(layers)])
 #         self.transformer = ResidualEncoderAttentionBlock(d_model, n_head)
 
         self.fe = FE(d_model)
+    
+        self.ln_post = nn.LayerNorm(d_model)
+
+        self.initialize_parameters()
         
+    def initialize_parameters(self):
+
+        proj_std = (self.d_model ** -0.5) * ((2 * self.layers) ** -0.5)
+        attn_std = self.d_model ** -0.5
+        fc_std = (2 * self.d_model) ** -0.5
+        
+        for block in self.transformer:
+            nn.init.normal_(block.attn.in_proj_weight, std=attn_std)
+            nn.init.normal_(block.attn.out_proj.weight, std=proj_std)
+            nn.init.normal_(block.mlp.c_fc.weight, std=fc_std)
+            nn.init.normal_(block.mlp.c_proj.weight, std=proj_std)
+
 
     def forward(self, x):
         """
@@ -103,6 +120,8 @@ class Encoder(nn.Module):
         x = x.permute(1, 0, 2)  # NLD -> LND
         x = self.transformer(x)
         x = x.permute(1, 0, 2) # LND -> NLD
+        
+        x = self.ln_post(x)
             
         return x
     

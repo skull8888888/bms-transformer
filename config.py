@@ -4,7 +4,7 @@
 class CFG:
     debug=False
     max_len=277
-    num_workers=8
+    num_workers=11
 
     backbone='tf_efficientnet_b0_ns'
     d_encoder=1280

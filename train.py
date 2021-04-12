@@ -28,8 +28,8 @@ for n, (train_index, val_index) in enumerate(Fold.split(folds, folds['InChI_leng
     folds.loc[val_index, 'fold'] = int(n)
 
 fold = 0
-trn_idx = folds[folds['fold'] == fold].index
-val_idx = folds[folds['fold'] == fold + 1].index[:10000]
+trn_idx = folds[folds['fold'] != fold].index
+val_idx = folds[folds['fold'] == fold].index[:60000]
 
 train_folds = folds.loc[trn_idx].reset_index(drop=True)
 valid_folds = folds.loc[val_idx].reset_index(drop=True)

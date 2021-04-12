@@ -41,10 +41,12 @@ class Model(pl.LightningModule):
         
         end_condition = torch.zeros(batch_size, dtype=torch.long).type_as(enc_output)
     
+        memory = None
+    
         # predict sequence        
         for t in range(decode_lengths):
             
-            x = self.decoder(input_tokens, enc_output)
+            x, memory = self.decoder(input_tokens, enc_output, memory=memory)
 
             preds = x.squeeze(1)
 
@@ -64,12 +66,11 @@ class Model(pl.LightningModule):
         
     def training_step(self, batch, batch_nb):
         
-        imgs, labels, label_lengths, mask, pad_masks = batch
+        imgs, labels, label_lengths, mask, pad_mask = batch
         
-
         enc_output = self.encoder(imgs)
         
-        pred = self.decoder(labels, enc_output, mask, pad_masks)
+        pred = self.decoder(labels, enc_output, mask=mask, pad_mask=pad_mask)
         pred = pred.view(-1,pred.size(-1))
         
         pads = torch.full((labels.size(0),1), self.tokenizer.stoi["<pad>"]).type_as(labels)
@@ -108,7 +109,7 @@ class Model(pl.LightningModule):
             for s in pred:
                 f.write(s + '\n')
         score = get_score(target, pred)
-        
+        print("\n",score)
         self.log('LD', score, prog_bar=True)
                 
     
